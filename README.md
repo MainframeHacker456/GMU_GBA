@@ -49,14 +49,14 @@ Finally: .\gmugba "Pokemon.gba" "gba_bios.bin"
 
 Keyboard Controls
 GBA Button	                        Keyboard Key
-D-Pad (Up / Down / Left / Right)	Arrow keys or W / S / A / D
-A Button	                        Z
-B Button	                        X
+D-Pad (Up / Down / Left / Right)	  Arrow keys or W / S / A / D
+A Button	                          Z
+B Button	                          X
 L Shoulder	                        Q
 R Shoulder	                        E
-Start	                            Enter
+Start	                              Enter
 Select	                            Shift or Backspace
-Quit	                            Escape
+Quit	                              Escape
 
                              ..-+...                         .....#+.                               
                              ..+-+...                          .+-+..                               
