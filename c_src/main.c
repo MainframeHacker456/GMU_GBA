@@ -79,7 +79,7 @@ static bool load_bios(const char *filename) {
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("====================================================\n");
-        printf("  gdkGBA - Educational GBA Emulator Frontend (C)    \n");
+        printf("  GBA Emulator Frontend (In C!)    \n");
         printf("====================================================\n");
         printf("Usage: %s <rom.gba> [bios.bin]\n\n", argv[0]);
         printf("Controls:\n");
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
     }
 
     SDL_Window *window = SDL_CreateWindow(
-        "gdkGBA",
+        "GMU GBA",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         GBA_WIDTH * SCALE,
