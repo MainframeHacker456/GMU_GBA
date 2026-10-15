@@ -1,6 +1,6 @@
 @echo off
 echo ========================================================
-echo   Building gdkGBA Educational Emulator (gdkgba.exe)
+echo   Building GBA Emulator (gdkgba.exe)
 echo ========================================================
 
 if exist gdkgba del /f /q gdkgba
@@ -10,7 +10,7 @@ gcc -O3 -Wall -Wextra -I./c_src c_src/main.c c_src/arm.c c_src/arm_mem.c c_src/b
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ========================================================
-    echo  BUILD SUCCESSFUL: gdkgba.exe is ready!
+    echo  BUILD SUCCESSFUL: GBA is ready!
     echo ========================================================
     echo.
     echo Usage:
