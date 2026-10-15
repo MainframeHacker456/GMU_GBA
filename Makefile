@@ -12,7 +12,7 @@ SRC = c_src/main.c \
       c_src/timer.c \
       c_src/video.c
 
-TARGET = gdkgba
+TARGET = gmu_gba
 
 all: $(TARGET)
 
