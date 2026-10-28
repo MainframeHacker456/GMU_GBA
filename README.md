@@ -42,7 +42,7 @@ gcc -O3 -I./c_src c_src/*.c -lmingw32 -lSDL2 -lm -o gmugba.exe
 ~~On Windows, programs that use SDL2 need SDL2.dll in the same folder as the executable:~~
 
 ~~Copy SDL2.dll from: C:\msys64\mingw64\bin\SDL2.dll~~ 
-^^^Optional steps if the emu doesn't somehow recognize SDL and refuses to run.
+**Optional steps if the emu doesn't somehow recognize SDL and refuses to run.**
 
 Paste it directly into your project folder next to gdkgba.exe
 You can do the same for your
