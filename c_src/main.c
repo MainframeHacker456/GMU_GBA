@@ -4,8 +4,20 @@
 #include <stdbool.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <SDL2/SDL_syswm.h>
+#endif
+
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
+
+
+// Menu IDs
+#define ID_2X_SPEED        1001
+#define ID_1X_SPEED        1002
+#define ID_CTRL_SETUP      2001
+#define ID_CTRL_REMAPPING  2002
 
 #include "arm.h"
 #include "arm_mem.h"
@@ -16,6 +28,45 @@
 #define GBA_WIDTH  240
 #define GBA_HEIGHT 160
 #define SCALE      3   // Window will open at 720x480
+
+#ifdef _WIN32
+// So far just a visual shell only
+static void create_menu(SDL_Window *window) {
+    SDL_SysWMinfo wmInfo;
+    SDL_VERSION(&wmInfo.version);
+    if (!SDL_GetWindowWMInfo(window, &wmInfo)) return;
+
+    // The actual window
+    HWND hwnd = wmInfo.info.win.window;
+
+    HMENU hMenuBar = CreateMenu();
+    HMENU hEmuMenu = CreateMenu();
+    HMENU hCtrlMenu = CreateMenu();
+
+    HMENU hRomMenu = CreateMenu();
+    // Emulation Menu
+    AppendMenu(hEmuMenu, MF_STRING, 1002, "&1x Speed");
+    AppendMenu(hEmuMenu, MF_STRING, 1001, "&2x Speed");
+    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hEmuMenu, "&Speed");
+
+    // Controllers Menu
+    AppendMenu(hCtrlMenu, MF_STRING, 2001, "&Configure Controller...");
+    AppendMenu(hCtrlMenu, MF_STRING, 2002, "&Controller Remapping");
+    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hCtrlMenu, "&Controller");
+    // Rom selection Menu
+    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hRomMenu, "&Rom");
+
+    SetMenu(hwnd, hMenuBar);
+}
+#endif
+
+#ifdef _WIN32
+
+static void configure_controller(HWND hwnd) {
+    printf("[Menu] Configure Controller clicked: Success!\n");
+    MessageBox(hwnd, "Success", "Controller Configuration", MB_OK);
+}
+#endif
 
 // Round ROM size up to the next power of 2 for memory mirroring mask
 static uint32_t next_pow2(uint32_t val) {
@@ -46,7 +97,6 @@ static bool load_rom(const char *filename) {
         return false;
     }
 
-    // GBA cartridges are at most 32 MB
     cart_rom_size = (size > 0x2000000) ? 0x2000000 : size;
     cart_rom_mask = next_pow2(cart_rom_size) - 1;
 
@@ -79,13 +129,12 @@ static bool load_bios(const char *filename) {
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("====================================================\n");
-        printf("  GBA Emulator Frontend (In C!)    \n");
+        printf("  GMU GBA - Game Boy Advance Emulator (In C!)       \n");
         printf("====================================================\n");
         printf("Usage: %s <rom.gba> [bios.bin]\n\n", argv[0]);
         printf("Controls:\n");
         printf("  D-Pad:  Arrow keys or WASD\n");
-        printf("  A:      Z\n");
-        printf("  B:      X\n");
+        printf("  A / B:  Z / X\n");
         printf("  L / R:  Q / E\n");
         printf("  Start:  Enter\n");
         printf("  Select: Shift or Backspace\n");
@@ -141,19 +190,25 @@ int main(int argc, char *argv[]) {
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
     );
 
-    // 32-bit BGRA streaming texture for the 240x160 GBA framebuffer
+    // 32-bit streaming texture for the 240x160 GBA framebuffer
     SDL_Texture *texture = SDL_CreateTexture(
         renderer,
-        SDL_PIXELFORMAT_BGRA8888,
+        SDL_PIXELFORMAT_ABGR8888, // Previously caused a purple/blue tint
         SDL_TEXTUREACCESS_STREAMING,
         GBA_WIDTH,
         GBA_HEIGHT
     );
 
+#ifdef _WIN32
+    // Attach the menu bar
+ create_menu(window);
+ create_menu(window);
+ SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+#endif
+
     // 5. Main Emulation Loop
     bool running = true;
     while (running) {
-        // Poll OS window events & keyboard
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -190,6 +245,16 @@ int main(int argc, char *argv[]) {
                     default: break;
                 }
             }
+            #ifdef _WIN32
+            else if (event.type == SDL_SYSWMEVENT) {
+                if (event.syswm.msg->msg.win.msg == WM_COMMAND) {
+                WORD cmd_id = LOWORD(event.syswm.msg->msg.win.wParam);
+                if (cmd_id == ID_CTRL_SETUP) {
+                    configure_controller(event.syswm.msg->msg.win.hwnd);
+                }
+            }
+            }
+            #endif
         }
 
         // Render one full GBA video frame (scanlines 0 through 227)
