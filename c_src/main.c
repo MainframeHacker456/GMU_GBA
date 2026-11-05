@@ -4,8 +4,32 @@
 #include <stdbool.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <SDL2/SDL_syswm.h>
+#endif
+
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
+
+// Menu IDs
+#define ID_2X_SPEED        1001
+#define ID_1X_SPEED        1002
+#define ID_CTRL_SETUP      2001
+
+// GBA Button Remap IDs
+#define ID_CTRL_REMAP_A        3001
+#define ID_CTRL_REMAP_B        3002
+#define ID_CTRL_REMAP_L        3003
+#define ID_CTRL_REMAP_R        3004
+#define ID_CTRL_REMAP_START    3005
+#define ID_CTRL_REMAP_SELECT   3006
+#define ID_CTRL_REMAP_UP       3007
+#define ID_CTRL_REMAP_DOWN     3008
+#define ID_CTRL_REMAP_LEFT     3009
+#define ID_CTRL_REMAP_RIGHT    3010
+
+#define ID_ROM_OPEN            4001
 
 #include "arm.h"
 #include "arm_mem.h"
@@ -16,6 +40,69 @@
 #define GBA_WIDTH  240
 #define GBA_HEIGHT 160
 #define SCALE      3   // Window will open at 720x480
+
+#ifdef _WIN32
+// Controller setup test handler
+static void configure_controller(HWND hwnd) {
+    printf("[Menu] Configure Controller clicked: Success!\n");
+    MessageBox(hwnd, "Success", "Controller Configuration", MB_OK);
+}
+
+// Barebones test handler for button remapping
+static void on_remap_button(HWND hwnd, const char *button_name) {
+    printf("[Menu] Remap GBA %s clicked: Success!\n", button_name);
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Remap GBA %s (Stub)", button_name);
+    MessageBox(hwnd, msg, "Button Remapping", MB_OK);
+}
+
+// Create the native Windows menu bar
+static void create_menu(SDL_Window *window) {
+    SDL_SysWMinfo wmInfo;
+    SDL_VERSION(&wmInfo.version);
+    if (!SDL_GetWindowWMInfo(window, &wmInfo)) return;
+
+    HWND hwnd = wmInfo.info.win.window;
+
+    HMENU hMenuBar   = CreateMenu();
+    HMENU hEmuMenu   = CreateMenu();
+    HMENU hCtrlMenu  = CreateMenu();
+    HMENU hRemapMenu = CreateMenu();
+    HMENU hRomMenu   = CreateMenu();
+
+    // Speed Menu
+    AppendMenu(hEmuMenu, MF_STRING, ID_1X_SPEED, "&1x Speed");
+    AppendMenu(hEmuMenu, MF_STRING, ID_2X_SPEED, "&2x Speed");
+    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hEmuMenu, "&Speed");
+
+    // Controller Menu with Remapping Submenu
+    AppendMenu(hCtrlMenu, MF_STRING, ID_CTRL_SETUP, "&Configure Controller...");
+
+    //Remap items inside submenu
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_A, "&A");
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_B, "&B");
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_L, "&Left shoulder");
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_R, "&Right Shoulder");
+
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_START,  "&Start");
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_SELECT, "&Select");
+ 
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_UP,    "&Up");
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_DOWN,  "&Down");
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_LEFT,  "&Left");
+    AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_RIGHT, "&Right");
+
+    AppendMenu(hCtrlMenu, MF_POPUP, (UINT_PTR)hRemapMenu, "&Remap Buttons");
+
+    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hCtrlMenu, "&Controller");
+
+    // ROM Selection Menu
+    AppendMenu(hRomMenu, MF_STRING, ID_ROM_OPEN, "&Open ROM...");
+    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hRomMenu, "&Rom");
+
+    SetMenu(hwnd, hMenuBar);
+}
+#endif
 
 // Round ROM size up to the next power of 2 for memory mirroring mask
 static uint32_t next_pow2(uint32_t val) {
@@ -46,7 +133,6 @@ static bool load_rom(const char *filename) {
         return false;
     }
 
-    // GBA cartridges are at most 32 MB
     cart_rom_size = (size > 0x2000000) ? 0x2000000 : size;
     cart_rom_mask = next_pow2(cart_rom_size) - 1;
 
@@ -79,13 +165,12 @@ static bool load_bios(const char *filename) {
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("====================================================\n");
-        printf("  GBA Emulator Frontend (In C!)    \n");
+        printf("  GMU GBA - Game Boy Advance Emulator (In C!)       \n");
         printf("====================================================\n");
         printf("Usage: %s <rom.gba> [bios.bin]\n\n", argv[0]);
         printf("Controls:\n");
         printf("  D-Pad:  Arrow keys or WASD\n");
-        printf("  A:      Z\n");
-        printf("  B:      X\n");
+        printf("  A / B:  Z / X\n");
         printf("  L / R:  Q / E\n");
         printf("  Start:  Enter\n");
         printf("  Select: Shift or Backspace\n");
@@ -141,19 +226,24 @@ int main(int argc, char *argv[]) {
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
     );
 
-    // 32-bit BGRA streaming texture for the 240x160 GBA framebuffer
+    // 32-bit streaming texture for the 240x160 GBA framebuffer
     SDL_Texture *texture = SDL_CreateTexture(
         renderer,
-        SDL_PIXELFORMAT_BGRA8888,
+        SDL_PIXELFORMAT_ABGR8888,
         SDL_TEXTUREACCESS_STREAMING,
         GBA_WIDTH,
         GBA_HEIGHT
     );
 
+#ifdef _WIN32
+    // Attach the menu bar and enable Windows menu messages
+    create_menu(window);
+    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+#endif
+
     // 5. Main Emulation Loop
     bool running = true;
     while (running) {
-        // Poll OS window events & keyboard
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -190,6 +280,60 @@ int main(int argc, char *argv[]) {
                     default: break;
                 }
             }
+            #ifdef _WIN32
+            else if (event.type == SDL_SYSWMEVENT) {
+                if (event.syswm.msg->msg.win.msg == WM_COMMAND) {
+                    WORD cmd_id = LOWORD(event.syswm.msg->msg.win.wParam);
+
+                    switch (cmd_id) {
+                        case ID_CTRL_SETUP:
+                            configure_controller(event.syswm.msg->msg.win.hwnd);
+                            break;
+
+                        case ID_CTRL_REMAP_A:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "A");
+                            break;
+
+                        case ID_CTRL_REMAP_B:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "B");
+                            break;
+
+                        case ID_CTRL_REMAP_L:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "L");
+                            break;
+
+                        case ID_CTRL_REMAP_R:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "R");
+                            break;
+
+                        case ID_CTRL_REMAP_START:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "Start");
+                            break;
+
+                        case ID_CTRL_REMAP_SELECT:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "Select");
+                            break;
+
+                        case ID_CTRL_REMAP_UP:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "D-Pad Up");
+                            break;
+
+                        case ID_CTRL_REMAP_DOWN:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "D-Pad Down");
+                            break;
+
+                        case ID_CTRL_REMAP_LEFT:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "D-Pad Left");
+                            break;
+
+                        case ID_CTRL_REMAP_RIGHT:
+                            on_remap_button(event.syswm.msg->msg.win.hwnd, "D-Pad Right");
+                            break;
+
+                    }
+                }
+            }
+            #endif
         }
 
         // Render one full GBA video frame (scanlines 0 through 227)
