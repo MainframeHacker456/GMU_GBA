@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include "sqlite3.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -31,6 +32,18 @@
 
 #define ID_ROM_OPEN            4001
 
+// Keyboard remap IDs
+#define ID_KEY_REMAP_A        5001
+#define ID_KEY_REMAP_B        5002
+#define ID_KEY_REMAP_L        5003
+#define ID_KEY_REMAP_R        5004
+#define ID_KEY_REMAP_START    5005
+#define ID_KEY_REMAP_SELECT   5006
+#define ID_KEY_REMAP_UP       5007
+#define ID_KEY_REMAP_DOWN     5008
+#define ID_KEY_REMAP_LEFT     5009
+#define ID_KEY_REMAP_RIGHT    5010
+
 #include "arm.h"
 #include "arm_mem.h"
 #include "io.h"
@@ -56,6 +69,14 @@ static void on_remap_button(HWND hwnd, const char *button_name) {
     MessageBox(hwnd, msg, "Button Remapping", MB_OK);
 }
 
+// Barebones test handler for keyboard remapping
+static void on_key_remap(HWND hwnd, const char *button_name) {
+    printf("[Menu] Remap keyboard key for GBA %s clicked: Success!\n", button_name);
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Remap keyboard key for GBA %s (Stub)", button_name);
+    MessageBox(hwnd, msg, "Keyboard Remapping", MB_OK);
+}
+
 // Create the native Windows menu bar
 static void create_menu(SDL_Window *window) {
     SDL_SysWMinfo wmInfo;
@@ -69,6 +90,7 @@ static void create_menu(SDL_Window *window) {
     HMENU hCtrlMenu  = CreateMenu();
     HMENU hRemapMenu = CreateMenu();
     HMENU hRomMenu   = CreateMenu();
+    HMENU hKeyMenu = CreateMenu();
 
     // Speed Menu
     AppendMenu(hEmuMenu, MF_STRING, ID_1X_SPEED, "&1x Speed");
@@ -78,7 +100,7 @@ static void create_menu(SDL_Window *window) {
     // Controller Menu with Remapping Submenu
     AppendMenu(hCtrlMenu, MF_STRING, ID_CTRL_SETUP, "&Configure Controller...");
 
-    //Remap items inside submenu
+    // Remap items inside submenu
     AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_A, "&A");
     AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_B, "&B");
     AppendMenu(hRemapMenu, MF_STRING, ID_CTRL_REMAP_L, "&Left shoulder");
@@ -96,6 +118,19 @@ static void create_menu(SDL_Window *window) {
 
     AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hCtrlMenu, "&Controller");
 
+    // Keyboard menu
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_A,      "&A");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_B,      "&B");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_L,      "&Left shoulder");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_R,      "&Right Shoulder");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_START,  "&Start");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_SELECT, "&Select");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_UP,     "&Up");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_DOWN,   "&Down");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_LEFT,   "&Left");
+    AppendMenu(hKeyMenu, MF_STRING, ID_KEY_REMAP_RIGHT,  "&Right");
+    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hKeyMenu, "&Keyboard");
+
     // ROM Selection Menu
     AppendMenu(hRomMenu, MF_STRING, ID_ROM_OPEN, "&Open ROM...");
     AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hRomMenu, "&Rom");
@@ -103,6 +138,9 @@ static void create_menu(SDL_Window *window) {
     SetMenu(hwnd, hMenuBar);
 }
 #endif
+
+// Setting up sqlite db
+sqlite3 *setupDB();
 
 // Round ROM size up to the next power of 2 for memory mirroring mask
 static uint32_t next_pow2(uint32_t val) {
@@ -162,7 +200,58 @@ static bool load_bios(const char *filename) {
     return false;
 }
 
+sqlite3 *setupDB() {
+    sqlite3 *db;
+    int rc = sqlite3_open("tdod.db", &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open database %s\n", sqlite3_errmsg(db));
+        return NULL;
+    }
+    return db;
+}
+
+bool db_create_table(sqlite3 *db) {
+    char sql[256];
+    sprintf(sql, "CREATE TABLE IF NOT EXISTS keybind(gba_id INTEGER PRIMARY KEY, key_name VARCHAR(30));");
+    char *errMsg = 0;
+    int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Could not create table in DB %s\n", errMsg);
+        sqlite3_free(errMsg);
+        return false;
+    }
+    return true;
+}
+
+bool db_insert(char *button, sqlite3 *db, int gba_id) {
+    char sql[256];
+    sprintf(sql, "INSERT OR REPLACE INTO keybind(gba_id, key_name) VALUES (?, ?);");
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        fprintf(stderr, "Prepare failed: %s\n", sqlite3_errmsg(db));
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, gba_id);
+    sqlite3_bind_text(stmt, 2, button, -1, SQLITE_TRANSIENT);
+    
+    int rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Could not write to DB: %s\n", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    sqlite3_finalize(stmt);
+    return true;
+}
+
 int main(int argc, char *argv[]) {
+
+    //setting up sqlite3 db
+    sqlite3 *db = setupDB();
+    if (!db) {
+        return 1;
+    }
+
     if (argc < 2) {
         printf("====================================================\n");
         printf("  GMU GBA - Game Boy Advance Emulator (In C!)       \n");
@@ -330,6 +419,45 @@ int main(int argc, char *argv[]) {
                             on_remap_button(event.syswm.msg->msg.win.hwnd, "D-Pad Right");
                             break;
 
+                        case ID_KEY_REMAP_A:
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "A");
+                            break;
+
+                        case ID_KEY_REMAP_B:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "B");
+                        break;
+
+                        case ID_KEY_REMAP_L:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "L");
+                        break;
+
+                        case ID_KEY_REMAP_R:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "R");
+                        break;
+
+                        case ID_KEY_REMAP_START:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "Start");
+                        break;
+
+                        case ID_KEY_REMAP_SELECT:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "Select");
+                        break;
+
+                        case ID_KEY_REMAP_UP:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Up");
+                        break;
+
+                        case ID_KEY_REMAP_DOWN:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Down");
+                        break;
+
+                        case ID_KEY_REMAP_LEFT:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Left");
+                        break;
+
+                        case ID_KEY_REMAP_RIGHT:
+                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Right");
+                        break;
                     }
                 }
             }
@@ -358,6 +486,8 @@ int main(int argc, char *argv[]) {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+
+    sqlite3_close(db);
 
     arm_uninit();
     return 0;
