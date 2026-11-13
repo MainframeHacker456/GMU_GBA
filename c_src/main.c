@@ -280,6 +280,7 @@ static void create_menu(SDL_Window *window) {
 // Setting up sqlite db
 sqlite3 *setupDB();
 
+
 // Round ROM size up to the next power of 2 for memory mirroring mask
 static uint32_t next_pow2(uint32_t val) {
     val--;
@@ -338,9 +339,11 @@ static bool load_bios(const char *filename) {
     return false;
 }
 
+// DB Functions
+
 sqlite3 *setupDB() {
     sqlite3 *db;
-    int rc = sqlite3_open("tdod.db", &db);
+    int rc = sqlite3_open("mydatabase.db", &db);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Cannot open database %s\n", sqlite3_errmsg(db));
         return NULL;
@@ -390,6 +393,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    db_create_table(db);
+
     if (argc < 2) {
         printf("====================================================\n");
         printf("  GMU GBA - Game Boy Advance Emulator (In C!)       \n");
@@ -418,7 +423,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    )
     bool has_bios = load_bios(bios_path);
     key_input.w = 0x03ff; // All buttons unpressed (active-low)
     int_halt = false;
@@ -661,40 +665,40 @@ int main(int argc, char *argv[]) {
                             break;
 
                         case ID_KEY_REMAP_B:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "B");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "B");
+                            break;
 
                         case ID_KEY_REMAP_L:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "L");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "L");
+                            break;
 
                         case ID_KEY_REMAP_R:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "R");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "R");
+                            break;
 
                         case ID_KEY_REMAP_START:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "Start");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "Start");
+                            break;
 
                         case ID_KEY_REMAP_SELECT:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "Select");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "Select");
+                            break;
 
                         case ID_KEY_REMAP_UP:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Up");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Up");
+                            break;
 
                         case ID_KEY_REMAP_DOWN:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Down");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Down");
+                            break;
 
                         case ID_KEY_REMAP_LEFT:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Left");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Left");
+                            break;
 
                         case ID_KEY_REMAP_RIGHT:
-                        on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Right");
-                        break;
+                            on_key_remap(event.syswm.msg->msg.win.hwnd, "D-Pad Right");
+                            break;
                         case ID_1X_SPEED:
                             printf("[Speed] 1x Speed selected\n");
                             break;
