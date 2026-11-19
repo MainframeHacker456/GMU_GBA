@@ -1,0 +1,10 @@
+btn_a=0
+btn_b=1
+btn_l=9
+btn_r=10
+btn_start=6
+btn_select=4
+btn_up=11
+btn_down=12
+btn_left=13
+btn_right=14
